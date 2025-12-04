@@ -1,4 +1,10 @@
 // functions/api/[[path]].js
+export const onRequest = async (context) => {
+  console.log("DEBUG Functions Running");
+  console.log("ENV keys:", Object.keys(context.env || {}));
+  ...
+}
+
 
 // ===== CORS（同網域其實不太需要，但保留） =====
 const ALLOWED_ORIGINS = [
