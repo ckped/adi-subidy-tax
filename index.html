@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>產創補助資料上傳與查詢平台（MVP）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen max-w-6xl mx-auto p-4 space-y-6">
+    <!-- Header -->
+    <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">產創補助資料上傳與查詢平台（MVP）</h1>
+        <p class="text-sm text-slate-600">
+          Cloudflare Pages Functions + D1 · 單頁版前端（純 HTML + JS）
+        </p>
+      </div>
+      <div class="space-y-1 text-sm text-right">
+        <div id="user-info" class="font-mono text-slate-700">載入中...</div>
+        <div class="text-xs text-slate-400">
+          dev 模式可填 email 模擬：<br />
+          <input
+            id="dev-email"
+            type="email"
+            placeholder="you@adi.gov.tw"
+            class="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+          />
+        </div>
+      </div>
+    </header>
+
+    <!-- Global message -->
+    <div id="global-message" class="hidden rounded-md border px-3 py-2 text-sm"></div>
+
+    <main class="space-y-10">
+      <!-- Search Section -->
+      <section id="search-section" class="rounded-xl bg-white p-4 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-2">
+          <h2 class="text-lg font-semibold">🔍 公司資料查詢</h2>
+          <div class="text-xs text-slate-500">
+            統一編號：精準查詢 · 公司名稱：模糊查詢
+          </div>
+        </div>
+
+        <form id="search-form" class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            id="search-query"
+            type="text"
+            placeholder="請輸入統一編號或公司名稱"
+            class="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+            required
+          />
+          <button
+            type="submit"
+            class="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            查詢
+          </button>
+          <button
+            id="search-export-btn"
+            type="button"
+            class="rounded border border-blue-600 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+          >
+            匯出查詢結果（CSV）
+          </button>
+        </form>
+
+        <div id="search-result-meta" class="mt-4 text-xs text-slate-500"></div>
+
+        <div id="search-results" class="mt-4 space-y-4"></div>
+      </section>
+
+      <!-- Upload Section -->
+      <section id="upload-section" class="rounded-xl bg-white p-4 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-2">
+          <h2 class="text-lg font-semibold">📤 上傳資料（CSV）</h2>
+          <div class="text-xs text-slate-500">
+            欄位名稱可用中文，至少需包含「統一編號」、「公司名稱」
+          </div>
+        </div>
+
+        <form id="upload-form" class="space-y-4">
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-medium text-slate-700 mb-1">
+                服務項目
+              </label>
+              <select
+                id="upload-service-select"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white"
+              >
+              </select>
+              <p class="mt-1 text-xs text-slate-400">
+                由後端 /api/services 提供清單，依權限決定誰能上傳。
+              </p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">
+                標頭列列號（header_row）
+              </label>
+              <input
+                id="header-row"
+                type="number"
+                min="1"
+                value="2"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p class="mt-1 text-xs text-slate-400">預設第 2 列為欄位名稱</p>
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">
+                統一編號欄位名稱
+              </label>
+              <input
+                id="company-id-header"
+                type="text"
+                value="統一編號"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">
+                公司名稱欄位名稱
+              </label>
+              <input
+                id="company-name-header"
+                type="text"
+                value="公司名稱"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">
+              上傳 CSV 檔案
+            </label>
+            <input
+              id="csv-file"
+              type="file"
+              accept=".csv,text/csv"
+              class="block w-full text-sm"
+            />
+            <p class="mt-1 text-xs text-slate-400">
+              目前版本只吃 CSV；若為 Excel，請先匯出為 CSV 再上傳。
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-3">
+            <button
+              type="submit"
+              class="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              上傳並匯入 D1 資料庫
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Manage Section -->
+      <section id="manage-section" class="rounded-xl bg-white p-4 shadow-sm">
+        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 class="text-lg font-semibold">⚙️ 服務項目管理（owner 用）</h2>
+          <div class="text-xs text-slate-500">
+            只允許 owner 呼叫刪除 / 轉移 owner API，後端會再做檢查。
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div class="sm:col-span-2 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">
+                選擇服務項目
+              </label>
+              <select
+                id="manage-service-select"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white"
+              ></select>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-medium text-slate-700 mb-2">上傳歷史紀錄</h3>
+              <div id="uploads-list" class="space-y-2 text-xs"></div>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div class="rounded border border-slate-200 p-3">
+              <h3 class="text-sm font-semibold text-slate-700">轉移服務項目負責人</h3>
+              <p class="mt-1 text-xs text-slate-500">
+                呼叫 /api/services/:id/transfer-owner，僅限現任 owner 可以執行。
+              </p>
+              <form id="transfer-owner-form" class="mt-2 space-y-2 text-xs">
+                <label class="block">
+                  新 owner email
+                  <input
+                    id="new-owner-email"
+                    type="email"
+                    class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                    placeholder="new-owner@adi.gov.tw"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  class="mt-1 w-full rounded bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                >
+                  轉移負責人
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // =========================
+    // 基本設定
+    // =========================
+
+    // Pages Functions 與前端同網域，因此直接走相對路徑，不再跨網域
+    const API_BASE = ""; // => /api/xxx
+
+    let currentUser = null;
+    let services = [];
+
+    const userInfoEl = document.getElementById("user-info");
+    const globalMessageEl = document.getElementById("global-message");
+    const devEmailInput = document.getElementById("dev-email");
+
+    function showMessage(text, type = "info") {
+      if (!text) {
+        globalMessageEl.classList.add("hidden");
+        return;
+      }
+      globalMessageEl.textContent = text;
+      globalMessageEl.classList.remove("hidden");
+      globalMessageEl.classList.remove(
+        "border-blue-200",
+        "bg-blue-50",
+        "text-blue-800",
+        "border-red-200",
+        "bg-red-50",
+        "text-red-800",
+        "border-emerald-200",
+        "bg-emerald-50",
+        "text-emerald-800"
+      );
+      if (type === "error") {
+        globalMessageEl.classList.add(
+          "border-red-200",
+          "bg-red-50",
+          "text-red-800"
+        );
+      } else if (type === "success") {
+        globalMessageEl.classList.add(
+          "border-emerald-200",
+          "bg-emerald-50",
+          "text-emerald-800"
+        );
+      } else {
+        globalMessageEl.classList.add(
+          "border-blue-200",
+          "bg-blue-50",
+          "text-blue-800"
+        );
+      }
+    }
+
+    /**
+     * 統一呼叫後端 API 的 helper
+     * - 會自動帶上 dev email（X-User-Email）
+     * - 對正式環境，Access 會用 Cookie，憑證走同網域
+     */
+    async function apiFetch(path, options = {}) {
+      let { method = "GET", headers = {}, body } = options;
+
+      const finalHeaders = { ...headers };
+
+      // 如果有 body 而且不是 FormData，就自動轉成 JSON
+      if (body && !(body instanceof FormData)) {
+        finalHeaders["Content-Type"] = "application/json";
+        if (typeof body !== "string") {
+          body = JSON.stringify(body);
+        }
+      }
+
+      // dev 模式：如果畫面上有輸入測試 email，就塞 X-User-Email
+      const devEmail = devEmailInput?.value.trim();
+      if (devEmail) {
+        finalHeaders["X-User-Email"] = devEmail;
+      }
+
+      const res = await fetch(API_BASE + path, {
+        method,
+        headers: finalHeaders,
+        body,
+        credentials: "include", // 給 Access cookie 用
+      });
+
+      return res;
+    }
+
+    // =========================
+    // 1. 載入使用者資訊 / 服務清單
+    // =========================
+
+    async function loadMe() {
+      try {
+        const res = await apiFetch("/api/me", { method: "GET" });
+        if (!res.ok) {
+          userInfoEl.textContent = "未登入（/api/me 失敗）";
+          return;
+        }
+        const data = await res.json();
+        if (data.authenticated) {
+          currentUser = data.user;
+          userInfoEl.textContent =
+            "使用者：" + currentUser.email + " · 建立於 " + currentUser.created_at;
+          if (!devEmailInput.value.trim()) {
+            devEmailInput.value = currentUser.email;
+          }
+        } else {
+          userInfoEl.textContent = "未驗證（Cloudflare Access 未通過）";
+        }
+      } catch (err) {
+        console.error(err);
+        userInfoEl.textContent = "載入 /api/me 發生錯誤";
+      }
+    }
+
+    async function loadServices() {
+      try {
+        const res = await apiFetch("/api/services", { method: "GET" });
+        if (!res.ok) {
+          showMessage("讀取服務項目失敗", "error");
+          return;
+        }
+        services = await res.json();
+        renderServiceSelects();
+      } catch (err) {
+        console.error(err);
+        showMessage("呼叫 /api/services 發生錯誤", "error");
+      }
+    }
+
+    function renderServiceSelects() {
+      const uploadSelect = document.getElementById("upload-service-select");
+      const manageSelect = document.getElementById("manage-service-select");
+
+      uploadSelect.innerHTML = "";
+      manageSelect.innerHTML = "";
+
+      if (!services.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "尚無服務項目，請先透過 API 建立";
+        uploadSelect.appendChild(opt);
+        manageSelect.appendChild(opt.cloneNode(true));
+        return;
+      }
+
+      for (const s of services) {
+        const opt1 = document.createElement("option");
+        opt1.value = s.id;
+        opt1.textContent = `${s.id} - ${s.name}`;
+        uploadSelect.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = s.id;
+        opt2.textContent = `${s.id} - ${s.name}`;
+        manageSelect.appendChild(opt2);
+      }
+    }
+
+    // =========================
+    // 2. 查詢與匯出
+    // =========================
+
+    async function handleSearch(event) {
+      event.preventDefault();
+      const q = document.getElementById("search-query").value.trim();
+      if (!q) return;
+
+      showMessage("查詢中...", "info");
+
+      try {
+        const res = await apiFetch("/api/search?q=" + encodeURIComponent(q), {
+          method: "GET",
+          headers: {},
+        });
+        if (!res.ok) {
+          showMessage("查詢失敗（" + res.status + "）", "error");
+          return;
+        }
+        const data = await res.json();
+        showMessage("查詢完成，共 " + data.count + " 筆。", "success");
+        renderSearchResults(data);
+      } catch (err) {
+        console.error(err);
+        showMessage("查詢 API 發生錯誤", "error");
+      }
+    }
+
+    function renderSearchResults(data) {
+      const metaEl = document.getElementById("search-result-meta");
+      const resultsEl = document.getElementById("search-results");
+      resultsEl.innerHTML = "";
+
+      metaEl.textContent =
+        "查詢字串：「" +
+        data.query +
+        "」，" +
+        (data.is_company_id ? "以統一編號精準查詢" : "以公司名稱模糊查詢") +
+        "。共 " +
+        data.count +
+        " 筆結果。";
+
+      if (!data.results || !data.results.length) {
+        resultsEl.innerHTML =
+          '<div class="text-sm text-slate-500">沒有符合的結果。</div>';
+        return;
+      }
+
+      const groupByService = {};
+      for (const r of data.results) {
+        if (!groupByService[r.service_id]) {
+          groupByService[r.service_id] = {
+            service_name: r.service_name,
+            items: [],
+          };
+        }
+        groupByService[r.service_id].items.push(r);
+      }
+
+      for (const [serviceId, group] of Object.entries(groupByService)) {
+        const card = document.createElement("div");
+        card.className = "rounded-lg border border-slate-200 bg-slate-50 p-3";
+
+        const header = document.createElement("div");
+        header.className =
+          "flex flex-col gap-1 border-b border-slate-200 pb-2 mb-2 text-sm";
+        header.innerHTML = `
+          <div class="font-semibold">${group.service_name}（ID: ${serviceId}）</div>
+          <div class="text-xs text-slate-500">
+            本服務共有 ${group.items.length} 筆符合
+          </div>
+        `;
+        card.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "space-y-2 text-xs";
+
+        for (const item of group.items) {
+          const rowDiv = document.createElement("div");
+          rowDiv.className = "rounded border border-slate-200 bg-white p-2";
+
+          const metaRow = document.createElement("div");
+          metaRow.className =
+            "mb-1 flex flex-wrap items-center justify-between gap-1";
+          metaRow.innerHTML = `
+            <div>
+              <span class="text-slate-500">上傳者：</span>
+              <span class="font-mono">${item.uploaded_by_email}</span>
+            </div>
+            <div class="text-slate-500">
+              上傳時間：${item.uploaded_at}
+            </div>
+          `;
+          rowDiv.appendChild(metaRow);
+
+          const table = document.createElement("table");
+          table.className = "w-full border-collapse text-xs";
+          const tbody = document.createElement("tbody");
+
+          const row = item.row;
+          for (const [key, value] of Object.entries(row)) {
+            const tr = document.createElement("tr");
+            tr.className = "border-t border-slate-100";
+            tr.innerHTML = `
+              <td class="w-32 px-1 py-0.5 text-slate-500">${key}</td>
+              <td class="px-1 py-0.5 font-mono">${value ?? ""}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          rowDiv.appendChild(table);
+
+          list.appendChild(rowDiv);
+        }
+
+        card.appendChild(list);
+        resultsEl.appendChild(card);
+      }
+    }
+
+    function handleExport() {
+      const q = document.getElementById("search-query").value.trim();
+      if (!q) {
+        showMessage("請先輸入查詢字串再匯出。", "error");
+        return;
+      }
+      const url = API_BASE + "/api/search/export?q=" + encodeURIComponent(q);
+      window.location.href = url;
+    }
+
+    // =========================
+    // 3. 上傳 CSV
+    // =========================
+
+    async function handleUpload(event) {
+      event.preventDefault();
+
+      const serviceSelect = document.getElementById("upload-service-select");
+      const serviceId = serviceSelect.value;
+      if (!serviceId) {
+        showMessage("請先選擇服務項目。", "error");
+        return;
+      }
+
+      const fileInput = document.getElementById("csv-file");
+      if (!fileInput.files || !fileInput.files.length) {
+        showMessage("請選擇一個 CSV 檔案。", "error");
+        return;
+      }
+
+      const headerRow = parseInt(
+        document.getElementById("header-row").value || "2",
+        10
+      );
+      const companyIdHeader =
+        document.getElementById("company-id-header").value.trim() || "統一編號";
+      const companyNameHeader =
+        document.getElementById("company-name-header").value.trim() || "公司名稱";
+
+      const file = fileInput.files[0];
+      const filename = file.name;
+
+      showMessage("讀取檔案並上傳中...", "info");
+
+      try {
+        const text = await file.text();
+
+        const body = {
+          filename,
+          header_row: headerRow,
+          company_id_header: companyIdHeader,
+          company_name_header: companyNameHeader,
+          data: text,
+        };
+
+        const res = await apiFetch(
+          `/api/services/${encodeURIComponent(serviceId)}/upload`,
+          {
+            method: "POST",
+            body: JSON.stringify(body),
+          }
+        );
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error("Upload error:", errText);
+          showMessage("上傳失敗：" + errText, "error");
+          return;
+        }
+
+        const data = await res.json();
+        showMessage(
+          `上傳成功：服務 ${data.service_id} · 匯入 ${data.inserted_rows} 筆。`,
+          "success"
+        );
+
+        fileInput.value = "";
+
+        const manageSelect = document.getElementById("manage-service-select");
+        if (manageSelect.value === String(serviceId)) {
+          await loadUploadsForService(serviceId);
+        }
+      } catch (err) {
+        console.error(err);
+        showMessage("上傳流程發生錯誤", "error");
+      }
+    }
+
+    // =========================
+    // 4. 管理：列出上傳紀錄 / 軟刪除 / 轉移 owner
+    // =========================
+
+    async function loadUploadsForService(serviceId) {
+      if (!serviceId) return;
+      const listEl = document.getElementById("uploads-list");
+      listEl.innerHTML = "載入中...";
+
+      try {
+        const res = await apiFetch(
+          `/api/services/${encodeURIComponent(serviceId)}/uploads`,
+          {
+            method: "GET",
+            headers: {},
+          }
+        );
+        if (!res.ok) {
+          const txt = await res.text();
+          listEl.innerHTML =
+            '<div class="text-red-600 text-xs">讀取上傳紀錄失敗：' +
+            txt +
+            "</div>";
+          return;
+        }
+        const data = await res.json();
+        renderUploadsList(serviceId, data);
+      } catch (err) {
+        console.error(err);
+        listEl.innerHTML =
+          '<div class="text-red-600 text-xs">呼叫 uploads API 發生錯誤</div>';
+      }
+    }
+
+    function renderUploadsList(serviceId, uploads) {
+      const listEl = document.getElementById("uploads-list");
+      listEl.innerHTML = "";
+
+      if (!uploads.length) {
+        listEl.innerHTML =
+          '<div class="text-xs text-slate-500">尚無上傳紀錄。</div>';
+        return;
+      }
+
+      for (const u of uploads) {
+        const card = document.createElement("div");
+        card.className = "rounded border border-slate-200 bg-slate-50 p-2";
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="text-xs font-semibold">
+              #${u.id} · ${u.original_filename || "(未命名)"}
+            </div>
+            <div class="text-[11px] px-2 py-0.5 rounded-full ${
+              u.status === "active"
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-slate-200 text-slate-700"
+            }">
+              ${u.status}
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
+            <div>上傳者：<span class="font-mono">${
+              u.uploaded_by_email
+            }</span></div>
+            <div>上傳時間：${u.uploaded_at}</div>
+            <div>筆數：${u.row_count ?? "?"}</div>
+            <div>header_row：${u.header_row_index}</div>
+            <div>統一編號欄位：${u.company_id_header || "統一編號"}</div>
+            <div>公司名稱欄位：${u.company_name_header || "公司名稱"}</div>
+            <div>刪除時間：${u.deleted_at || "-"}</div>
+          </div>
+        `;
+
+        if (u.status === "active") {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "標記為 deleted（軟刪除）";
+          btn.className =
+            "mt-2 inline-flex items-center rounded bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700";
+          btn.addEventListener("click", async () => {
+            if (
+              !confirm(
+                `確定要將上傳 #${u.id} 標記為 deleted 嗎？（不會刪實體資料）`
+              )
+            ) {
+              return;
+            }
+            await deleteUpload(serviceId, u.id);
+          });
+          card.appendChild(btn);
+        }
+
+        listEl.appendChild(card);
+      }
+    }
+
+    async function deleteUpload(serviceId, uploadId) {
+      try {
+        const res = await apiFetch(
+          `/api/services/${encodeURIComponent(
+            serviceId
+          )}/uploads/${encodeURIComponent(uploadId)}/delete`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+          }
+        );
+        if (!res.ok) {
+          const txt = await res.text();
+          showMessage("刪除失敗：" + txt, "error");
+          return;
+        }
+        showMessage(`已將上傳 #${uploadId} 標記為 deleted。`, "success");
+        await loadUploadsForService(serviceId);
+      } catch (err) {
+        console.error(err);
+        showMessage("刪除 API 發生錯誤", "error");
+      }
+    }
+
+    async function handleTransferOwner(event) {
+      event.preventDefault();
+      const serviceSelect = document.getElementById("manage-service-select");
+      const serviceId = serviceSelect.value;
+      if (!serviceId) {
+        showMessage("請先選擇服務項目。", "error");
+        return;
+      }
+      const newOwner = document
+        .getElementById("new-owner-email")
+        .value.trim();
+      if (!newOwner) {
+        showMessage("請輸入新 owner 的 email。", "error");
+        return;
+      }
+
+      if (
+        !confirm(
+          `確定要把服務 ${serviceId} 的 owner 轉移給 ${newOwner} 嗎？`
+        )
+      ) {
+        return;
+      }
+
+      try {
+        const res = await apiFetch(
+          `/api/services/${encodeURIComponent(serviceId)}/transfer-owner`,
+          {
+            method: "POST",
+            body: JSON.stringify({ new_owner_email: newOwner }),
+          }
+        );
+        if (!res.ok) {
+          const txt = await res.text();
+          showMessage("轉移 owner 失敗：" + txt, "error");
+          return;
+        }
+        showMessage(
+          `服務 ${serviceId} 的 owner 已轉移給 ${newOwner}（以實際後端為準）。`,
+          "success"
+        );
+        document.getElementById("new-owner-email").value = "";
+        await loadServices();
+      } catch (err) {
+        console.error(err);
+        showMessage("transfer-owner API 發生錯誤", "error");
+      }
+    }
+
+    // =========================
+    // 5. 初始化
+    // =========================
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      document
+        .getElementById("search-form")
+        .addEventListener("submit", handleSearch);
+      document
+        .getElementById("search-export-btn")
+        .addEventListener("click", handleExport);
+      document
+        .getElementById("upload-form")
+        .addEventListener("submit", handleUpload);
+      document
+        .getElementById("manage-service-select")
+        .addEventListener("change", (e) =>
+          loadUploadsForService(e.target.value)
+        );
+      document
+        .getElementById("transfer-owner-form")
+        .addEventListener("submit", handleTransferOwner);
+
+      await loadMe();
+      await loadServices();
+
+      const manageSelect = document.getElementById("manage-service-select");
+      if (manageSelect.value) {
+        await loadUploadsForService(manageSelect.value);
+      }
+    });
+  </script>
+</body>
+</html>
