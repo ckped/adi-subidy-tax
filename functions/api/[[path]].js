@@ -298,6 +298,8 @@ async function handleListServices(env, email, url) {
 
   const mine = url.searchParams.get("mine") === "1";
   const db = env.DB;
+  // 第一次呼叫也不會炸：先確保 service_items 存在
+  await ensureServiceItemsTable(db);
 
   let query = "SELECT * FROM service_items";
   const params = [];
