@@ -215,6 +215,44 @@ export const onRequest = async (context) => {
 };
 
 // ========== handlers: user & services ==========
+async function ensureServiceItemsTable(db) {
+  await db
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS service_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        table_name TEXT UNIQUE NOT NULL,
+        owner_email TEXT NOT NULL,
+        created_by_email TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT
+      );
+    `)
+    .run();
+}
+
+async function ensureUploadsTable(db) {
+  await db
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS uploads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service_id INTEGER NOT NULL,
+        original_filename TEXT,
+        header_row_index INTEGER NOT NULL,
+        uploaded_by_email TEXT NOT NULL,
+        uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        row_count INTEGER,
+        company_id_header TEXT,
+        company_name_header TEXT,
+        status TEXT DEFAULT 'active',
+        deleted_at TEXT,
+        FOREIGN KEY (service_id) REFERENCES service_items(id),
+        FOREIGN KEY (uploaded_by_email) REFERENCES users(email)
+      );
+    `)
+    .run();
+}
 
 async function handleMe(env, email) {
   if (!email) return json({ authenticated: false }, 401);
@@ -263,6 +301,8 @@ async function handleListServices(env, email, url) {
 
   let query = "SELECT * FROM service_items";
   const params = [];
+ // 確保 service_items 存在
+  await ensureServiceItemsTable(db);
 
   if (mine) {
     query += " WHERE owner_email = ?";
@@ -284,19 +324,7 @@ async function handleCreateService(request, env, email) {
 
   const db = env.DB;
 
-  await db
-    .prepare(`
-      CREATE TABLE IF NOT EXISTS service_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        table_name TEXT UNIQUE NOT NULL,
-        owner_email TEXT NOT NULL,
-        created_by_email TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT
-      );
-    `)
+  await ensureServiceItemsTable(db);
     .run();
 
   const insertResult = await db
@@ -347,6 +375,14 @@ async function handleUploadServiceData(request, env, email, serviceId) {
   const companyNameHeader = body.company_name_header || "公司名稱";
 
   const db = env.DB;
+  // 先確保 service_items / uploads 兩張表存在
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
+
+const service = await db
+  .prepare("SELECT * FROM service_items WHERE id = ?")
+  .bind(serviceId)
+  .first();
 
   const service = await db
     .prepare("SELECT * FROM service_items WHERE id = ?")
@@ -506,6 +542,10 @@ async function searchAll(env, q) {
   const db = env.DB;
   const isCompanyId = /^\d{8}$/.test(q);
 
+  
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
+
   const servicesRes = await db
     .prepare("SELECT id, name, table_name FROM service_items;")
     .all();
@@ -661,6 +701,8 @@ async function handleListServiceUploads(env, email, serviceId, url) {
   if (!email) return json({ error: "Unauthorized" }, 401);
 
   const db = env.DB;
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
 
   const service = await db
     .prepare("SELECT * FROM service_items WHERE id = ?")
@@ -698,6 +740,8 @@ async function handleDeleteUpload(env, email, uploadId) {
   if (!email) return json({ error: "Unauthorized" }, 401);
 
   const db = env.DB;
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
 
   const row = await db
     .prepare(
@@ -749,6 +793,8 @@ async function handleTransferServiceOwner(request, env, email, serviceId) {
   if (!email) return json({ error: "Unauthorized" }, 401);
 
   const db = env.DB;
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
 
   const service = await db
     .prepare("SELECT * FROM service_items WHERE id = ?")
