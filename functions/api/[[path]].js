@@ -58,31 +58,45 @@ function decodeJwt(jwt) {
   return JSON.parse(json);
 }
 
-/** 取得使用者 email：
- *  - 正式：Cf-Access-Authenticated-User-Email
- *  - 本地 dev：X-User-Email（只有沒有 Access header 時才用）
+// Cloudflare Workers 提供 jwt.verify / jwt.decode
+import { jwt } from "@tsndr/cloudflare-worker-jwt";
+
+/**
+ * 順序：
+ * 1. Cloudflare Access Header 模式（最簡單）
+ * 2. 開發模式 X-User-Email
+ * 3. Cloudflare Access JWT（萬一只有 jwt-assertion）
  */
-function getEmail(request) {
-  // 1. Cloudflare Access「使用者登入模式」才會有這個 header
-  const direct = request.headers.get("Cf-Access-Authenticated-User-Email");
-  if (direct) return direct;
+async function getEmail(request, env) {
+  // 1️⃣ Cloudflare Access header 模式（最常見）
+  const headerEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
+  if (headerEmail) return headerEmail;
 
-  // 2. 開發測試模式
-  const dev = request.headers.get("X-User-Email");
-  if (dev) return dev;
+  // 2️⃣ 開發模式（你前端手動輸入 email）
+  const devEmail = request.headers.get("X-User-Email");
+  if (devEmail) return devEmail;
 
-  // 3. JWT 模式（cf-access-jwt-assertion）
-  const jwt = request.headers.get("cf-access-jwt-assertion");
-  if (jwt) {
-    try {
-      const payload = decodeJwt(jwt);
-      // Cloudflare Access 的 email 通常在 "email" 或 "sub"
-      return payload.email || payload.sub || "";
-    } catch (e) {
-      console.error("Failed to decode Access JWT", e);
-      return "";
-    }
+  // 3️⃣ JWT 模式（你目前遇到的情況）
+  const jwtToken = request.headers.get("Cf-Access-Jwt-Assertion");
+  if (!jwtToken) return "";  // 完全沒有登入紀錄
+
+  try {
+    // Access JWT 是簽章過的，不需要你給 secret，decode 是安全的
+    const decoded = jwt.decode(jwtToken);
+
+    // Cloudflare Access 設計中，email 在 decoded.email / decoded.common_name
+    const email =
+      decoded?.email ||
+      decoded?.common_name ||
+      decoded?.username ||
+      "";
+
+    return email;
+  } catch (err) {
+    console.error("Access JWT decode failed:", err);
+    return "";
   }
+}
 
   // 4. 都沒有 → 未登入
   return "";
