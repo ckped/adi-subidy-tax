@@ -51,6 +51,42 @@ function getEmail(request) {
   const dev = request.headers.get("X-User-Email") || "";
   return access || dev || "";
 }
+/** 單行 CSV 解析：支援雙引號與逗點，例如 "850,000" */
+function parseCsvLine(line) {
+  const cells = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+
+    if (inQuotes) {
+      if (c === '"') {
+        // 連續兩個 "" -> 代表字串中的一個 "
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        cells.push(cur);
+        cur = "";
+      } else {
+        cur += c;
+      }
+    }
+  }
+
+  cells.push(cur);
+  return cells;
+}
 
 /** 安全包裝資料表/欄位名稱，支援中文欄位名 */
 function quoteIdent(name) {
