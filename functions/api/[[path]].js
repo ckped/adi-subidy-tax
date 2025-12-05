@@ -58,48 +58,32 @@ function decodeJwt(jwt) {
   return JSON.parse(json);
 }
 
-// Cloudflare Workers 提供 jwt.verify / jwt.decode
-import { jwt } from "@tsndr/cloudflare-worker-jwt";
+function getEmail(request) {
+  // 1. Cloudflare Access（使用者登入模式）
+  const email = request.headers.get("Cf-Access-Authenticated-User-Email");
+  if (email) return email;
 
-/**
- * 順序：
- * 1. Cloudflare Access Header 模式（最簡單）
- * 2. 開發模式 X-User-Email
- * 3. Cloudflare Access JWT（萬一只有 jwt-assertion）
- */
-async function getEmail(request, env) {
-  // 1️⃣ Cloudflare Access header 模式（最常見）
-  const headerEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
-  if (headerEmail) return headerEmail;
+  // 2. 本地 dev 模式
+  const dev = request.headers.get("X-User-Email");
+  if (dev) return dev;
 
-  // 2️⃣ 開發模式（你前端手動輸入 email）
-  const devEmail = request.headers.get("X-User-Email");
-  if (devEmail) return devEmail;
-
-  // 3️⃣ JWT 模式（你目前遇到的情況）
-  const jwtToken = request.headers.get("Cf-Access-Jwt-Assertion");
-  if (!jwtToken) return "";  // 完全沒有登入紀錄
-
-  try {
-    // Access JWT 是簽章過的，不需要你給 secret，decode 是安全的
-    const decoded = jwt.decode(jwtToken);
-
-    // Cloudflare Access 設計中，email 在 decoded.email / decoded.common_name
-    const email =
-      decoded?.email ||
-      decoded?.common_name ||
-      decoded?.username ||
-      "";
-
-    return email;
-  } catch (err) {
-    console.error("Access JWT decode failed:", err);
-    return "";
+  // 3. Cloudflare Access JWT（只有少數 Access 設定會用到）
+  const jwt = request.headers.get("cf-access-jwt-assertion");
+  if (jwt) {
+    try {
+      const payload = decodeJwt(jwt);
+      if (payload.email) return payload.email;
+      if (payload.sub && payload.sub.includes("@")) return payload.sub;
+    } catch (e) {
+      console.warn("Skip malformed JWT, fallback to other methods");
+      // ❗ 絕對不要 return ""
+    }
   }
 
   // 4. 都沒有 → 未登入
   return "";
 }
+
 
 /** 單行 CSV 解析：支援雙引號與逗點，例如 "850,000" */
 function parseCsvLine(line) {
