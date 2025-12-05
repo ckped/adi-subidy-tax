@@ -96,7 +96,6 @@ async function getEmail(request, env) {
     console.error("Access JWT decode failed:", err);
     return "";
   }
-}
 
   // 4. 都沒有 → 未登入
   return "";
