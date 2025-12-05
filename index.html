@@ -227,11 +227,11 @@
             <div class="rounded border border-slate-200 p-3">
               <h3 class="text-sm font-semibold text-slate-700">轉移服務項目負責人</h3>
               <p class="mt-1 text-xs text-slate-500">
-                呼叫 /api/services/:id/transfer-owner，僅限現任 owner 可以執行。
+                僅限現任擁有者可以執行。
               </p>
               <form id="transfer-owner-form" class="mt-2 space-y-2 text-xs">
                 <label class="block">
-                  新 owner email
+                  新 擁有者 email
                   <input
                     id="new-owner-email"
                     type="email"
@@ -246,6 +246,14 @@
                   轉移負責人
                 </button>
               </form>
+              <hr class="my-3 border-slate-200" />
+              <button
+                id="delete-service-btn"
+                type="button"
+                class="w-full rounded bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+              >
+                刪除此服務項目（僅限 擁有者 / 管理者）
+              </button>
             </div>
           </div>
         </div>
@@ -793,6 +801,64 @@
         showMessage("建立服務項目 API 發生錯誤", "error");
       }
     }
+
+    async function handleDeleteCurrentService() {
+      const serviceSelect = document.getElementById("manage-service-select");
+      const serviceId = serviceSelect.value;
+    
+      if (!serviceId) {
+        showMessage("請先在右側下拉選單選擇要刪除的服務項目。", "error");
+        return;
+      }
+    
+      const service = services.find((s) => String(s.id) === String(serviceId));
+      const serviceName = service ? service.name : serviceId;
+    
+      if (
+        !confirm(
+          `確定要刪除服務項目「${serviceName}」（ID: ${serviceId}）嗎？\n` +
+            "此動作會刪除：\n" +
+            "1. service_items 中該筆資料\n" +
+            "2. uploads 中該服務的所有上傳紀錄\n" +
+            "3. 對應的 service_X_data 資料表\n\n" +
+            "僅限 owner 或管理者可以執行。"
+        )
+      ) {
+        return;
+      }
+    
+      try {
+        const res = await apiFetch(
+          `/api/services/${encodeURIComponent(serviceId)}/delete`,
+          {
+            method: "POST",
+            body: {}, // 後端不需要內容，但 fetch 會需要一個 body 物件時可放空
+          }
+        );
+    
+        if (!res.ok) {
+          const txt = await res.text();
+          showMessage("刪除服務項目失敗：" + txt, "error");
+          return;
+        }
+    
+        showMessage(
+          `已刪除服務項目「${serviceName}」（ID: ${serviceId}）。`,
+          "success"
+        );
+    
+        // 重新載入服務清單，更新下拉選單
+        await loadServices();
+    
+        // 清空上傳紀錄區塊
+        document.getElementById("uploads-list").innerHTML =
+          '<div class="text-xs text-slate-500">請重新選擇服務項目。</div>';
+      } catch (err) {
+        console.error(err);
+        showMessage("刪除服務項目 API 發生錯誤", "error");
+      }
+    }
+
     
 
     async function handleTransferOwner(event) {
