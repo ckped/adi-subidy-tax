@@ -726,24 +726,6 @@ async function searchAll(env, q) {
 }
 
 
-    const rowsRes = await db.prepare(sql).bind(...params).all();
-    const rows = rowsRes.results || [];
-
-    for (const row of rows) {
-      items.push({
-        service_id: serviceId,
-        service_name: serviceName,
-        table_name: tableName,
-        uploaded_at: upload.uploaded_at || null,
-        uploaded_by_email: upload.uploaded_by_email || null,
-        row,
-      });
-    }
-
-
-  return { isCompanyId, items };
-}
-
 
 async function handleSearch(env, email, url) {
   if (!email) return json({ error: "Unauthorized" }, 401);
