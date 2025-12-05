@@ -739,7 +739,7 @@ async function searchAll(env, q) {
         row,
       });
     }
-  }
+
 
   return { isCompanyId, items };
 }
