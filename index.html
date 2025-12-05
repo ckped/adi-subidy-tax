@@ -837,10 +837,10 @@
         !confirm(
           `確定要刪除服務項目「${serviceName}」（ID: ${serviceId}）嗎？\n` +
             "此動作會刪除：\n" +
-            "1. service_items 中該筆資料\n" +
-            "2. uploads 中該服務的所有上傳紀錄\n" +
-            "3. 對應的 service_X_data 資料表\n\n" +
-            "僅限 owner 或管理者可以執行。"
+            "1. 該服務所有上傳檔案" +
+            "2. 所有上傳紀錄\n" +
+            "3. 該服務項目\n\n" +
+            "僅限 擁有者 或管理者可以執行。"
         )
       ) {
         return;
