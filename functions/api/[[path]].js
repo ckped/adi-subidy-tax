@@ -544,7 +544,7 @@ async function handleUploadServiceData(request, env, email, serviceId) {
   }
 
   const headerLine = lines[headerRow - 1];
-  const headersRaw = headerLine.split(",").map((h) => h.trim());
+  const headersRaw = parseCsvLine(headerLine).map((h) => h.trim());
 
   const idxCompanyId = headersRaw.findIndex((h) => h === companyIdHeader);
   const idxCompanyName = headersRaw.findIndex((h) => h === companyNameHeader);
@@ -613,7 +613,7 @@ async function handleUploadServiceData(request, env, email, serviceId) {
   let inserted = 0;
 
   for (const line of dataLines) {
-    const cells = line.split(",");
+    const cells = parseCsvLine(line);
 
     const companyId = (cells[idxCompanyId] || "").trim();
     const companyName = (cells[idxCompanyName] || "").trim();
