@@ -652,6 +652,10 @@ async function searchAll(env, q) {
   const db = env.DB;
   const isCompanyId = /^\d{8}$/.test(q);
 
+  // 保險：確保兩張表存在
+  await ensureServiceItemsTable(db);
+  await ensureUploadsTable(db);
+
   const servicesRes = await db
     .prepare("SELECT id, name, table_name FROM service_items;")
     .all();
@@ -664,6 +668,7 @@ async function searchAll(env, q) {
     const serviceName = svc.name;
     const tableName = svc.table_name;
 
+    // 找這個 service 最新的一次 active 上傳
     const upload = await db
       .prepare(
         `
@@ -679,26 +684,27 @@ async function searchAll(env, q) {
 
     if (!upload) continue;
 
-    const companyIdHeader =
-      upload.company_id_header || "統一編號";
-    const companyNameHeader =
-      upload.company_name_header || "公司名稱";
+    const uploadId = upload.id;  // 關鍵：這次上傳的 id
+
+    const companyIdHeader = upload.company_id_header || "統一編號";
+    const companyNameHeader = upload.company_name_header || "公司名稱";
 
     const companyIdCol = quoteIdent(companyIdHeader);
     const companyNameCol = quoteIdent(companyNameHeader);
 
-    let sql = "";
-    let param = "";
+    let sql;
+    let params;
 
     if (isCompanyId) {
-      sql = `SELECT * FROM ${tableName} WHERE ${companyIdCol} = ? AND upload_id = ?;`;
-      param = q;
+      // 先用 upload_id 限縮到這次上傳，再用統編比對
+      sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyIdCol} = ?;`;
+      params = [uploadId, q];
     } else {
       sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyNameCol} LIKE ?;`;
-      param = `%${q}%`;
+      params = [uploadId, `%${q}%`];
     }
 
-    const rowsRes = await db.prepare(sql).bind(param).all();
+    const rowsRes = await db.prepare(sql).bind(...params).all();
     const rows = rowsRes.results || [];
 
     for (const row of rows) {
@@ -715,6 +721,7 @@ async function searchAll(env, q) {
 
   return { isCompanyId, items };
 }
+
 
 async function handleSearch(env, email, url) {
   if (!email) return json({ error: "Unauthorized" }, 401);
