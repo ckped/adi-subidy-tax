@@ -145,11 +145,11 @@
             <input
               id="csv-file"
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx"
               class="block w-full text-sm"
             />
             <p class="mt-1 text-xs text-slate-400">
-              目前版本只支援 CSV；若為 Excel，請先匯出為 CSV 再上傳。
+              支援 CSV / Excel（.xlsx）。若為 Excel，系統會自動轉為 CSV 再匯入，因此請不要合併儲存格
             </p>
           </div>
 
@@ -560,20 +560,20 @@
 
     async function handleUpload(event) {
       event.preventDefault();
-
+    
       const serviceSelect = document.getElementById("upload-service-select");
       const serviceId = serviceSelect.value;
       if (!serviceId) {
         showMessage("請先選擇服務項目。", "error");
         return;
       }
-
+    
       const fileInput = document.getElementById("csv-file");
       if (!fileInput.files || !fileInput.files.length) {
-        showMessage("請選擇一個 CSV 檔案。", "error");
+        showMessage("請選擇一個 CSV 或 Excel 檔案。", "error");
         return;
       }
-
+    
       const headerRow = parseInt(
         document.getElementById("header-row").value || "2",
         10
@@ -582,15 +582,31 @@
         document.getElementById("company-id-header").value.trim() || "統一編號";
       const companyNameHeader =
         document.getElementById("company-name-header").value.trim() || "公司名稱";
-
+    
       const file = fileInput.files[0];
       const filename = file.name;
-
+    
       showMessage("讀取檔案並上傳中...", "info");
-
+    
       try {
-        const text = await file.text();
-
+        let text;
+    
+        // 檔名判斷是否為 .xlsx
+        const lowerName = filename.toLowerCase();
+        if (lowerName.endsWith(".xlsx")) {
+          // 用 SheetJS 讀 Excel -> 取第一個工作表 -> 轉 CSV 字串
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+    
+          // 這裡會輸出標準 CSV，丟給後端就跟原本一樣
+          text = XLSX.utils.sheet_to_csv(worksheet);
+        } else {
+          // 原本就支援的 CSV 路徑
+          text = await file.text();
+        }
+    
         const body = {
           filename,
           header_row: headerRow,
@@ -598,7 +614,7 @@
           company_name_header: companyNameHeader,
           data: text,
         };
-
+    
         const res = await apiFetch(
           `/api/services/${encodeURIComponent(serviceId)}/upload`,
           {
@@ -606,22 +622,22 @@
             body: JSON.stringify(body),
           }
         );
-
+    
         if (!res.ok) {
           const errText = await res.text();
           console.error("Upload error:", errText);
           showMessage("上傳失敗：" + errText, "error");
           return;
         }
-
-        const data = await res.json();
+    
+        const dataResp = await res.json();
         showMessage(
-          `上傳成功：服務 ${data.service_id} · 匯入 ${data.inserted_rows} 筆。`,
+          `上傳成功：服務 ${dataResp.service_id} · 匯入 ${dataResp.inserted_rows} 筆。`,
           "success"
         );
-
+    
         fileInput.value = "";
-
+    
         const manageSelect = document.getElementById("manage-service-select");
         if (manageSelect.value === String(serviceId)) {
           await loadUploadsForService(serviceId);
@@ -631,6 +647,7 @@
         showMessage("上傳流程發生錯誤", "error");
       }
     }
+
 
     // =========================
     // 4. 管理：列出上傳紀錄 / 軟刪除 / 轉移 owner
