@@ -474,7 +474,7 @@ async function handleDeleteService(env, email, serviceId) {
 
   const isOwner = service.owner_email === email;
 
-  // 僅允許：管理端 或 現任 owner
+   僅允許：管理端 或 現任 owner
   if (!isAdmin(email) && !isOwner) {
     return json({
       error: "Forbidden: only admin or current owner can delete service",
@@ -861,9 +861,9 @@ async function handleListServiceUploads(env, email, serviceId, url) {
     .first();
 
   if (!service) return json({ error: "Service not found" }, 404);
-  if (service.owner_email !== email) {
-    return json({ error: "Forbidden: only owner can view uploads" }, 403);
-  }
+ // if (service.owner_email !== email) {
+   // return json({ error: "Forbidden: only owner can view uploads" }, 403);
+  //}
 
   const includeDeleted = url.searchParams.get("include_deleted") === "1";
 
