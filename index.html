@@ -935,6 +935,9 @@
       document
         .getElementById("create-service-form")
         .addEventListener("submit", handleCreateService);
+      document
+        .getElementById("delete-service-btn")
+        .addEventListener("click", handleDeleteCurrentService);
 
       await loadMe();
       await loadServices();
