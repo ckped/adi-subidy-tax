@@ -47,11 +47,31 @@ function withCors(request, response) {
  *  - 本地 dev：X-User-Email（只有沒有 Access header 時才用）
  */
 function getEmail(request) {
-  const access =
-    request.headers.get("Cf-Access-Authenticated-User-Email") || "";
-  const dev = request.headers.get("X-User-Email") || "";
-  return access || dev || "";
+  // 1. Cloudflare Access「使用者登入模式」才會有這個 header
+  const direct = request.headers.get("Cf-Access-Authenticated-User-Email");
+  if (direct) return direct;
+
+  // 2. 開發測試模式
+  const dev = request.headers.get("X-User-Email");
+  if (dev) return dev;
+
+  // 3. JWT 模式（cf-access-jwt-assertion）
+  const jwt = request.headers.get("cf-access-jwt-assertion");
+  if (jwt) {
+    try {
+      const payload = decodeJwt(jwt);
+      // Cloudflare Access 的 email 通常在 "email" 或 "sub"
+      return payload.email || payload.sub || "";
+    } catch (e) {
+      console.error("Failed to decode Access JWT", e);
+      return "";
+    }
+  }
+
+  // 4. 都沒有 → 未登入
+  return "";
 }
+
 /** 單行 CSV 解析：支援雙引號與逗點，例如 "850,000" */
 function parseCsvLine(line) {
   const cells = [];
