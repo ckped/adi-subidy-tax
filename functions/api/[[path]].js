@@ -7,6 +7,7 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1:8789",
   "https://adi-subsidy.pages.dev",
   "https://inv-subsidy-adi.pages.dev",
+  "https://inv-adi.org",
 ];
 
 const ADMIN_EMAILS = [
