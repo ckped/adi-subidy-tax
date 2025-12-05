@@ -691,10 +691,10 @@ async function searchAll(env, q) {
     let param = "";
 
     if (isCompanyId) {
-      sql = `SELECT * FROM ${tableName} WHERE ${companyIdCol} = ?;`;
+      sql = `SELECT * FROM ${tableName} WHERE ${companyIdCol} = ? AND upload_id = ?;`;
       param = q;
     } else {
-      sql = `SELECT * FROM ${tableName} WHERE ${companyNameCol} LIKE ?;`;
+      sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyNameCol} LIKE ?;`;
       param = `%${q}%`;
     }
 
