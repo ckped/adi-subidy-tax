@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>產創補助資料上傳與查詢平台</title>
+  <title>產創補助＆租稅優惠資料上傳與查詢平台</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +16,7 @@
       <div>
         <h1 class="text-2xl font-bold">產創補助資料上傳與查詢平台</h1>
         <p class="text-sm text-slate-600">
-          一站式產創條例稅務優惠＋補助資訊共享平台(Cloudflare Pages Functions + D1) 
+          一站式產創條例稅務優惠＋補助資訊共享平台
         </p>
       </div>
       <div class="space-y-1 text-sm text-right">
@@ -77,7 +77,7 @@
       <!-- Upload Section -->
       <section id="upload-section" class="rounded-xl bg-white p-4 shadow-sm">
         <div class="mb-4 flex items-center justify-between gap-2">
-          <h2 class="text-lg font-semibold">📤 上傳資料（CSV）</h2>
+          <h2 class="text-lg font-semibold">📤 上傳資料（CSV或Excel）</h2>
           <div class="text-xs text-slate-500">
             欄位名稱可用中文，至少需包含「統一編號」、「公司名稱」
           </div>
@@ -100,7 +100,7 @@
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-700 mb-1">
-                標頭列列號（哪一行是欄位名稱？）
+                標頭列列號（哪一列是欄位名稱？）
               </label>
               <input
                 id="header-row"
@@ -140,7 +140,7 @@
 
           <div>
             <label class="block text-xs font-medium text-slate-700 mb-1">
-              上傳 CSV 檔案
+              上傳 CSV/Excel 檔案
             </label>
             <input
               id="csv-file"
@@ -167,9 +167,9 @@
       <!-- Manage Section -->
       <section id="manage-section" class="rounded-xl bg-white p-4 shadow-sm">
         <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-lg font-semibold">⚙️ 服務項目管理（擁有者使 用）</h2>
+          <h2 class="text-lg font-semibold">⚙️ 服務項目管理（擁有者使用）</h2>
           <div class="text-xs text-slate-500">
-            只允許 擁有者 呼叫刪除 / 轉移 API，後端會再做檢查。
+            只允許 擁有者 刪除 / 轉移 服務項目
           </div>
         </div>
 
@@ -233,7 +233,7 @@
               </p>
               <form id="transfer-owner-form" class="mt-2 space-y-2 text-xs">
                 <label class="block">
-                  新 擁有者 email
+                  新擁有者email
                   <input
                     id="new-owner-email"
                     type="email"
@@ -359,7 +359,7 @@
       try {
         const res = await apiFetch("/api/me", { method: "GET" });
         if (!res.ok) {
-          userInfoEl.textContent = "未登入（/api/me 失敗）";
+          userInfoEl.textContent = "未登入";
           return;
         }
         const data = await res.json();
@@ -371,11 +371,11 @@
             devEmailInput.value = currentUser.email;
           }
         } else {
-          userInfoEl.textContent = "未驗證（Cloudflare Access 未通過）";
+          userInfoEl.textContent = "未驗證";
         }
       } catch (err) {
         console.error(err);
-        userInfoEl.textContent = "載入 /api/me 發生錯誤";
+        userInfoEl.textContent = "載入API時發生錯誤";
       }
     }
 
