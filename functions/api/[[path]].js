@@ -9,6 +9,14 @@ const ALLOWED_ORIGINS = [
   "https://inv-subsidy-adi.pages.dev",
 ];
 
+const ADMIN_EMAILS = [
+  "enyichen0413@adi.gov.tw", // 先放你自己，之後可再加其他管理者
+];
+
+function isAdmin(email) {
+  return ADMIN_EMAILS.includes(email);
+}
+
 function getCorsHeaders(request) {
   const origin = request.headers.get("Origin") || "";
   const allowed = ALLOWED_ORIGINS.includes(origin);
@@ -49,6 +57,14 @@ function quoteIdent(name) {
   const escaped = name.replace(/"/g, '""');
   return `"${escaped}"`;
 }
+
+/** 解析 /api/services/:id/delete */
+function matchServiceDeletePath(pathname) {
+  const m = pathname.match(/^\/api\/services\/(\d+)\/delete$/);
+  if (!m) return null;
+  return parseInt(m[1], 10);
+}
+
 
 /** 解析 /api/services/:id/upload */
 function matchUploadPath(pathname) {
@@ -131,6 +147,15 @@ export const onRequest = async (context) => {
         await handleCreateService(request, env, email)
       );
     }
+    // 服務項目刪除
+    const serviceIdForDeleteService = matchServiceDeletePath(pathname);
+    if (serviceIdForDeleteService !== null && request.method === "POST") {
+      return withCors(
+        request,
+        await handleDeleteService(env, email, serviceIdForDeleteService)
+      );
+    }
+
 
     // 上傳資料
     const serviceIdForUpload = matchUploadPath(pathname);
@@ -267,6 +292,7 @@ async function handleListServices(env, email, url) {
   return json(result.results || []);
 }
 
+
 async function handleCreateService(request, env, email) {
   if (!email) return json({ error: "Unauthorized" }, 401);
 
@@ -324,6 +350,96 @@ async function handleCreateService(request, env, email) {
 
   return json(service, 201);
 }
+
+async function handleDeleteService(env, email, serviceId) {
+  if (!email) return json({ error: "Unauthorized" }, 401);
+
+  const db = env.DB;
+
+  // 確保相關表存在（如果你已經有 ensureServiceItemsTable/ensureUploadsTable，就改成呼叫它們）
+  await db
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS service_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        table_name TEXT UNIQUE NOT NULL,
+        owner_email TEXT NOT NULL,
+        created_by_email TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT
+      );
+    `)
+    .run();
+
+  await db
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS uploads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service_id INTEGER NOT NULL,
+        original_filename TEXT,
+        header_row_index INTEGER NOT NULL,
+        uploaded_by_email TEXT NOT NULL,
+        uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        row_count INTEGER,
+        company_id_header TEXT,
+        company_name_header TEXT,
+        status TEXT DEFAULT 'active',
+        deleted_at TEXT,
+        FOREIGN KEY (service_id) REFERENCES service_items(id),
+        FOREIGN KEY (uploaded_by_email) REFERENCES users(email)
+      );
+    `)
+    .run();
+
+  // 先查 service
+  const service = await db
+    .prepare("SELECT * FROM service_items WHERE id = ?")
+    .bind(serviceId)
+    .first();
+
+  if (!service) {
+    return json({ error: "Service not found" }, 404);
+  }
+
+  const isOwner = service.owner_email === email;
+
+  // 僅允許：管理端 或 現任 owner
+  if (!isAdmin(email) && !isOwner) {
+    return json({
+      error: "Forbidden: only admin or current owner can delete service",
+    }, 403);
+  }
+
+  const tableName = service.table_name;
+
+  // 刪除該 service 的所有 uploads 紀錄
+  await db
+    .prepare("DELETE FROM uploads WHERE service_id = ?")
+    .bind(serviceId)
+    .run();
+
+  // 刪除該 service 對應的資料表（service_X_data）
+  if (tableName) {
+    try {
+      await db
+        .prepare(`DROP TABLE IF EXISTS ${tableName};`)
+        .run();
+    } catch (e) {
+      console.error("DROP TABLE failed:", tableName, e);
+      // 這裡失敗就 log，照你需求可選擇要不要 return error
+    }
+  }
+
+  // 最後刪掉 service_items 這一筆
+  await db
+    .prepare("DELETE FROM service_items WHERE id = ?")
+    .bind(serviceId)
+    .run();
+
+  return json({ success: true, deleted_service_id: serviceId });
+}
+
 
 // ========== 上傳 API ==========
 
