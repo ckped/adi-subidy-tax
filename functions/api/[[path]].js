@@ -474,7 +474,7 @@ async function handleDeleteService(env, email, serviceId) {
 
   const isOwner = service.owner_email === email;
 
-   僅允許：管理端 或 現任 owner
+  //僅允許：管理端 或 現任 owner
   if (!isAdmin(email) && !isOwner) {
     return json({
       error: "Forbidden: only admin or current owner can delete service",
