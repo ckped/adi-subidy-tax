@@ -652,6 +652,7 @@ async function searchAll(env, q) {
   const db = env.DB;
   const isCompanyId = /^\d{8}$/.test(q);
 
+  // 1. 抓所有服務項目
   const servicesRes = await db
     .prepare("SELECT id, name, table_name FROM service_items;")
     .all();
@@ -664,41 +665,66 @@ async function searchAll(env, q) {
     const serviceName = svc.name;
     const tableName = svc.table_name;
 
-    // 找這個 service 最新的一次 active 上傳
-    const upload = await db
+    // 2. 抓這個 service 下面所有「還是 active 的上傳紀錄」
+    const uploadsRes = await db
       .prepare(
         `
         SELECT *
         FROM uploads
         WHERE service_id = ? AND status = 'active'
-        ORDER BY uploaded_at DESC
-        LIMIT 1;
+        ORDER BY uploaded_at DESC, id DESC;
       `
       )
       .bind(serviceId)
-      .first();
+      .all();
 
-    if (!upload) continue;
+    const uploads = uploadsRes.results || [];
+    if (!uploads.length) continue;
 
-    const uploadId = upload.id;  // 關鍵：這次上傳的 id
+    // 3. 對每一個 upload_id 各查一次
+    for (const upload of uploads) {
+      const uploadId = upload.id;
 
-    const companyIdHeader = upload.company_id_header || "統一編號";
-    const companyNameHeader = upload.company_name_header || "公司名稱";
+      const companyIdHeader = upload.company_id_header || "統一編號";
+      const companyNameHeader = upload.company_name_header || "公司名稱";
 
-    const companyIdCol = quoteIdent(companyIdHeader);
-    const companyNameCol = quoteIdent(companyNameHeader);
+      const companyIdCol = quoteIdent(companyIdHeader);
+      const companyNameCol = quoteIdent(companyNameHeader);
 
-    let sql;
-    let params;
+      let sql;
+      let params;
 
-    if (isCompanyId) {
-      // 先用 upload_id 限縮到這次上傳，再用統編比對
-      sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyIdCol} = ?;`;
-      params = [uploadId, q];
-    } else {
-      sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyNameCol} LIKE ?;`;
-      params = [uploadId, `%${q}%`];
+      if (isCompanyId) {
+        // 統編精準 + 限縮在這次上傳
+        sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyIdCol} = ?;`;
+        params = [uploadId, q];
+      } else {
+        // 公司名稱模糊 + 限縮在這次上傳
+        sql = `SELECT * FROM ${tableName} WHERE upload_id = ? AND ${companyNameCol} LIKE ?;`;
+        params = [uploadId, `%${q}%`];
+      }
+
+      const rowsRes = await db.prepare(sql).bind(...params).all();
+      const rows = rowsRes.results || [];
+
+      for (const row of rows) {
+        items.push({
+          service_id: serviceId,
+          service_name: serviceName,
+          table_name: tableName,
+          upload_id: uploadId,
+          original_filename: upload.original_filename || null,
+          uploaded_at: upload.uploaded_at || null,
+          uploaded_by_email: upload.uploaded_by_email || null,
+          row,
+        });
+      }
     }
+  }
+
+  return { isCompanyId, items };
+}
+
 
     const rowsRes = await db.prepare(sql).bind(...params).all();
     const rows = rowsRes.results || [];
