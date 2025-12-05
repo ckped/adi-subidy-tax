@@ -42,6 +42,22 @@ function withCors(request, response) {
   });
 }
 
+// ===============================
+// JWT 解碼（不驗證簽章，只解 payload）
+// ===============================
+function decodeJwt(jwt) {
+  const parts = jwt.split(".");
+  if (parts.length < 2) throw new Error("Invalid JWT");
+
+  const payloadBase64 = parts[1]
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd((parts[1].length + 3) & ~3, "=");
+
+  const json = atob(payloadBase64);
+  return JSON.parse(json);
+}
+
 /** 取得使用者 email：
  *  - 正式：Cf-Access-Authenticated-User-Email
  *  - 本地 dev：X-User-Email（只有沒有 Access header 時才用）
