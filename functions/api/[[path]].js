@@ -817,7 +817,9 @@ async function handleSearchExport(env, email, url) {
     lines.push(rowValues.join(","));
   }
 
-  const csv = lines.join("\r\n");
+  const BOM = "\uFEFF";  
+  const csv = BOM + lines.join("\r\n");
+
   const filenameSafe =
     q.replace(/[^a-zA-Z0-9_\u4e00-\u9fff]/g, "_") || "search";
 
