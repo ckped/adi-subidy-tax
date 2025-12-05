@@ -652,10 +652,6 @@ async function searchAll(env, q) {
   const db = env.DB;
   const isCompanyId = /^\d{8}$/.test(q);
 
-  // 保險：確保兩張表存在
-  await ensureServiceItemsTable(db);
-  await ensureUploadsTable(db);
-
   const servicesRes = await db
     .prepare("SELECT id, name, table_name FROM service_items;")
     .all();
