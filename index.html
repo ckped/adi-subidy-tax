@@ -726,13 +726,13 @@
         if (u.status === "active") {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.textContent = "標記為 deleted（軟刪除）";
+          btn.textContent = "刪除上傳檔案";
           btn.className =
             "mt-2 inline-flex items-center rounded bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700";
           btn.addEventListener("click", async () => {
             if (
               !confirm(
-                `確定要將上傳 #${u.id} 標記為 deleted 嗎？（不會刪實體資料）`
+                `確定要將上傳 #${u.id} 標記為 刪除 嗎？（不會刪實體資料）`
               )
             ) {
               return;
